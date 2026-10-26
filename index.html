@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="Phaseformer: the minimum requirements for multimodal behavior cloning. A deterministic, single-pass policy needs inputs that vary before each decision and a clock; a score-based penalty is an optional sharpener.">
+  <meta name="keywords" content="Phaseformer, behavior cloning, imitation learning, flow matching, multimodal policies, low-latency control, robot learning">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phaseformer: Minimum Requirements for Multimodal Behavior Cloning</title>
+  <link rel="icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='76' font-size='88' text-anchor='middle' font-family='serif'%3E%CF%81%3C/text%3E%3C/svg%3E">
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\(', right: '\\)', display: false}]});"></script>
+  <script defer src="./static/js/index.js"></script>
+</head>
+<body>
+
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">Phaseformer</h1>
+          <h2 class="subtitle is-3 publication-subtitle">
+            Minimum Requirements for Multimodal Behavior Cloning
+          </h2>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">Joseph C. Liechty<sup>1</sup>,</span>
+            <span class="author-block">Tucker Hermans<sup>1,2</sup></span>
+          </div>
+          <div class="is-size-6 publication-venue-line">
+            <span class="author-block"><sup>1</sup>University of Utah,</span>
+            <span class="author-block"><sup>2</sup>NVIDIA</span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <!-- PDF Link. -->
+              <span class="link-block">
+                <a href="./static/phaseformer.pdf"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-file-pdf"></i>
+                  </span>
+                  <span>Paper</span>
+                </a>
+              </span>
+              <!-- arXiv Link: uncomment and fill in the ID once the paper is listed.
+              <span class="link-block">
+                <a href="https://arxiv.org/abs/XXXX.XXXXX"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-file-alt"></i>
+                  </span>
+                  <span>arXiv</span>
+                </a>
+              </span>
+              -->
+              <!-- Code Link. -->
+              <span class="link-block">
+                <a href="https://github.com/joeliechty/phaseformer"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="hero teaser">
+  <div class="container is-max-desktop">
+    <div class="hero-body">
+      <a href="./static/images/corl_big_picture.png" target="_blank" rel="noopener">
+        <img src="./static/images/corl_big_picture.png" class="figure-img teaser-img"
+             alt="Overview on Push-T. (A) Standard deterministic policy training with an MSE loss on robot actions averages modes: its final T poses scatter around the goal. (B) Phaseformer injects task progress rho into every block through adaptive layer norms and adds a regularizer built from the score of the robot state distribution at each phase, so it does not average modes.">
+      </a>
+      <p class="caption has-text-centered">
+        Phaseformer is a deterministic behavior cloning policy that injects task progress&nbsp;ρ through adaptive
+        layer norms (AdaLN). <b>(A)</b> Without phase, a deterministic policy trained with a velocity MSE loss
+        averages modes. <b>(B)</b> Phaseformer uses no sampling or iterative computation: the variation in the
+        demonstrated starts, phase conditioning and a score-based penalty prevent mode averaging at decision
+        points.
+      </p>
+      <h2 class="subtitle has-text-centered tldr">
+        <span class="dnerf">Phaseformer</span> is a lightweight transformer that injects phase through AdaLN.
+        It captures multimodal demonstrations with one deterministic forward pass per step: no sampling and no
+        iterative computation.
+      </h2>
+    </div>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            Deterministic behavior cloning policies average the modes of multimodal demonstrations. The accepted
+            remedies sample stochastic latent inputs during training, often combined with iterative computation. At
+            inference however, many of these methods run deterministically. We ask what a deterministic policy
+            minimally needs at training and inference. Reading flow matching as phase-conditioned behavior cloning
+            on straight-line demonstrations, we show that a deterministic policy can send rollouts to different
+            modes only through variation in its input before the split, that conditioning on task progress (phase)
+            removes the temporal aliasing in its regression target, and that a score-based penalty pulls predictions
+            toward the locally dominant mode where branches overlap. Phaseformer and a phase-conditioned MLP combine
+            these with demonstrations whose start states vary, and use no latent variable, sampling or iterative
+            computation. They are Pareto-optimal for ultra-low-latency CPU control, and in navigation, varied
+            demonstration starts restore success where identical starts fail in every seed.
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+  </div>
+</section>
+
+
+<section class="section pt-0">
+  <div class="container is-max-desktop">
+    <!-- Method. -->
+    <h2 class="title is-3 has-text-centered">The minimum requirements</h2>
+    <div class="columns">
+      <div class="column">
+        <div class="box method-card">
+          <span class="method-step">1</span>
+          <h3 class="title is-5">Inputs that vary before each decision</h3>
+          <p>
+            A deterministic policy can send two inputs to different modes only if they differ before the split;
+            at a shared input the regression target is the branch average. This is necessary for any split.
+            Phaseformer takes the variation from the demonstrated starts rather than synthesizing it.
+          </p>
+        </div>
+      </div>
+      <div class="column">
+        <div class="box method-card">
+          <span class="method-step">2</span>
+          <h3 class="title is-5">A clock: phase injection</h3>
+          <p>
+            Like the interpolation time in flow matching, task progress ρ&nbsp;∈&nbsp;[0,&nbsp;1] is a policy input.
+            Without it, the MSE optimum pools velocities across phases and its rollouts can overshoot or stall.
+            Phaseformer injects ρ into every block through AdaLN. At run time ρ comes from a linear clock or a
+            monotone task-progress estimator, clamped at 1. It is never sampled.
+          </p>
+        </div>
+      </div>
+      <div class="column">
+        <div class="box method-card">
+          <span class="method-step">3</span>
+          <h3 class="title is-5">An optional sharpener: score regularization</h3>
+          <p>
+            Where demonstrations overlap, an L1 penalty on the velocity error along the score
+            \(\nabla_{\mathbf{x}}\log\hat p_\rho\) moves predictions from the average demonstrated velocity toward
+            the median one. The score is the closed-form gradient of a Gaussian KDE of the demonstrated robot
+            states at each phase, computed once before training and not used at inference.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="equation">
+      $$\phi^\ast=\arg\min_\phi\;\mathbb{E}\Big[\underbrace{\big\|\pi_\phi(\mathbf{x},\mathcal{O},\rho)-\mathbf{u}\big\|^2}_{\text{L2 behavior cloning loss}}\;+\;\lambda\,\underbrace{\big|\big(\mathbf{u}-\pi_\phi(\mathbf{x},\mathcal{O},\rho)\big)\cdot\nabla_{\mathbf{x}}\log\hat p_\rho(\mathbf{x})\big|}_{\text{L1 score regularizer}}\Big]$$
+    </div>
+    <p class="caption has-text-centered">
+      \(\mathbf{u}\): demonstrated action (a robot-state derivative), \(\mathbf{x}\): robot state,
+      \(\mathcal{O}\): observation, \(\rho\): phase, \(\hat p_\rho\): kernel density estimate of the
+      demonstrated robot states at phase \(\rho\).
+    </p>
+
+    <h3 class="title is-5 has-text-centered table-title">Where each policy's stochasticity enters</h3>
+    <div class="table-container">
+      <table class="table is-narrow is-fullwidth is-hoverable policy-table">
+        <thead>
+          <tr><th>Policy</th><th>Stochasticity in training</th><th>…at test time</th><th>Clock</th><th>Feedback</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Diffusion Policy</td><td>noised action chunks</td><td>samples noise; <i>K</i> passes</td><td>denoising step</td><td>every <i>T<sub>a</sub></i> steps</td></tr>
+          <tr><td>MIP</td><td>noised input to 2nd step</td><td>deterministic; 2 passes</td><td>step index</td><td>every chunk</td></tr>
+          <tr><td>ACT</td><td>CVAE latent <i>z</i></td><td><i>z</i> = 0; 1 pass</td><td>none</td><td>every step (ensembling)</td></tr>
+          <tr><td>Streaming Flow Policy</td><td>tubes around demos (σ<sub>0</sub>)</td><td>σ<sub>0</sub> = 0; 1 pass per action</td><td>time in chunk</td><td>every chunk</td></tr>
+          <tr class="ours-row"><td><b>Phaseformer</b></td><td>demonstrated starts</td><td>deterministic; 1 pass</td><td>task progress ρ</td><td>every step</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="caption has-text-centered">
+      Only Diffusion Policy samples at test time; the others are deterministic maps of their inputs, so the input
+      fixes the mode. Settings as published.
+    </p>
+    <!--/ Method. -->
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Demonstrations already look like a flow</h2>
+    <div class="content has-text-justified section-intro">
+      <p>
+        Viewed over phase, a set of demonstrations looks just like a flow matching probability path: a start
+        distribution that evolves and splits into modes. Flow matching is phase-conditioned behavior cloning on
+        straight-line demonstrations. The two fit the same regression target, the average velocity of a family of
+        random paths at each state and phase. Flow matching chooses straight paths; behavior cloning receives
+        curved, obstacle-avoiding or contact-driven ones from the expert.
+      </p>
+    </div>
+  </div>
+  <div class="container is-max-widescreen">
+    <figure class="figure-block">
+      <p class="figure-label">A · Single path <span class="figure-sublabel">one goal, one route</span></p>
+      <img src="./static/videos/single_path_phase_evolution.gif" class="figure-img" loading="lazy"
+           alt="Scenario A (single path): training demonstrations and the marginal distributions of x, y and heading as phase sweeps from 0 to 1.">
+    </figure>
+    <figure class="figure-block">
+      <p class="figure-label">B · Dual goal <span class="figure-sublabel">two goals, two routes</span></p>
+      <img src="./static/videos/dual_goal_phase_evolution.gif" class="figure-img" loading="lazy"
+           alt="Scenario B (dual goal): training demonstrations and the marginal distributions of x, y and heading as phase sweeps from 0 to 1.">
+    </figure>
+    <figure class="figure-block">
+      <p class="figure-label">C · Dual path <span class="figure-sublabel">one goal, two routes around an obstacle</span></p>
+      <img src="./static/videos/dual_path_phase_evolution.gif" class="figure-img" loading="lazy"
+           alt="Scenario C (dual path): training demonstrations and the marginal distributions of x, y and heading as phase sweeps from 0 to 1.">
+    </figure>
+    <p class="caption has-text-centered">
+      Left: training demonstrations of each navigation scenario. Right: marginal distributions of
+      x, y and heading θ as the phase ρ sweeps from 0 to 1.
+    </p>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Navigation: starts, phase and score resolve mode averaging</h2>
+    <div class="content has-text-justified section-intro">
+      <p>
+        A 134K-parameter MLP steers a non-holonomic robot from 1,024 held-out starts. In the dual-path scenario
+        (C), the deterministic policy with no phase and no score hits the block in 29% of rollouts. Phase splits
+        rollouts left (45%) or right (48%), cutting collisions to 7%, and score cuts them to 3%, near Diffusion
+        Policy's 1%, with a single forward pass per step.
+      </p>
+    </div>
+  </div>
+  <div class="container is-max-widescreen">
+    <a href="./static/images/fig_policy_rollouts_n1024_ABC.png" target="_blank" rel="noopener">
+      <img src="./static/images/fig_policy_rollouts_n1024_ABC.png" class="figure-img" loading="lazy"
+           alt="Navigation demonstrations and rollouts from 1024 held-out starts in the three scenarios for MLP without phase, MLP+phase, MLP+phase+score, Diffusion Policy, MIP and ACT.">
+    </a>
+    <p class="caption has-text-centered">
+      Navigation demonstrations and rollouts (seed 0, 1,024 held-out starts) of all policies. Blue/orange:
+      successful rollouts (left/right mode in B and C); red: collision; gray: undecided. Click the figure for full
+      resolution.
+    </p>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Push-T: phase and score fix the block's orientation</h2>
+    <div class="content section-intro">
+      <p>
+        On Push-T we compare two parameter-matched 1.8M-parameter backbones, MLP-med wide and the Phaseformer
+        TF-med wide, each with and without phase and score, against Diffusion Policy, MIP and ACT. Variants with
+        phase read it from a small learned task-progress estimator and are scored where it first reads
+        ρ&nbsp;=&nbsp;1.
+      </p>
+      <ul>
+        <li>
+          <b>Phaseformer+score</b> (TF+phase+score in the plots) scores significantly better than the variants
+          without phase: 0.69, against 0.56 for the transformer with neither phase nor score and 0.59 with score
+          alone.
+        </li>
+        <li>
+          <b>Orientation.</b> Adding phase and score significantly improves the block's final orientation.
+          Phaseformer+score ends 12° off, on par with closed-loop Diffusion Policy (12°); only open-loop Diffusion
+          Policy is significantly better (5°), and every other policy, ACT (16°) included, is significantly worse.
+        </li>
+        <li>
+          <b>Position.</b> Final position error is the main contributor to Phaseformer's low success rate: 42&nbsp;px,
+          against ACT's 24&nbsp;px.
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div class="container is-max-widescreen">
+    <img src="./static/images/fig_pusht_violin_pareto_score_goal_rho1.png" class="figure-img" loading="lazy"
+         alt="Push-T mean score, final position error, final orientation error and success rate per seed for MLP-med wide and TF-med wide with and without phase and score, and the baselines.">
+    <p class="caption has-text-centered">
+      Push-T episode performance and final object-pose accuracy: mean score, final position error, orientation
+      error and success rate (final coverage above 0.95). Dots: 10 seeds; bar: mean. Hatched: TF-med wide; plain:
+      MLP-med wide; bold: variants with phase. ACT runs closed loop. †:&nbsp;p&nbsp;&lt;&nbsp;0.05 vs. TF+phase+score
+      (Welch over seeds).
+    </p>
+    <img src="./static/images/fig_pusht_final_poses_pareto_rho1.png" class="figure-img figure-gap" loading="lazy"
+         alt="Final T poses over 50 test environments for the held-out demonstrations, ACT, Diffusion Policy, MIP, and the four variants of MLP-med wide and TF-med wide, seed 0.">
+    <p class="caption has-text-centered">
+      Final block pose distributions across 50 environments (seed 0), shaded by goal coverage. Phase injection and
+      score regularization let deterministic policies resolve orientation errors.
+    </p>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Push-T rollouts</h2>
+    <div class="content has-text-justified section-intro">
+      <p>
+        Rollouts of the two 1.8M-parameter backbones above. Variants with phase stop once their estimator reads
+        ρ&nbsp;=&nbsp;1: at that point a phase-conditioned policy has finished its task. Compare Phaseformer+score
+        against the other variants and the baselines below.
+      </p>
+    </div>
+  </div>
+  <div class="container is-max-widescreen">
+    <div class="viewer">
+      <p class="viewer-title">Phaseformer+score (TF-med wide+phase+score) <span class="tag is-dark is-rounded">ours</span></p>
+      <img src="./static/videos/fig_pusht_rollout_ranked_score_w2.5_const_tfmed_rho1.gif" class="figure-img"
+           loading="lazy"
+           alt="Push-T rollouts of Phaseformer+score (TF-med wide+phase+score), held at rho = 1: best, median and worst episode for each of 10 policy seeds.">
+    </div>
+
+    <div class="viewer">
+      <p class="viewer-title">Compare with: <span id="compare-label">TF-med wide (no phase)</span></p>
+      <div class="method-groups">
+        <div class="method-group">
+          <span class="group-label">With phase</span>
+          <button type="button" class="button is-small is-rounded" aria-pressed="false"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_fm_tfmed_rho1.gif">Phaseformer (TF-med wide+phase)</button>
+          <button type="button" class="button is-small is-rounded" aria-pressed="false"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_score_w2.5_const_mlpmed_rho1.gif">MLP-med wide+phase+score</button>
+          <button type="button" class="button is-small is-rounded" aria-pressed="false"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_fm_mlpmed_rho1.gif">MLP-med wide+phase</button>
+        </div>
+        <div class="method-group">
+          <span class="group-label">No phase</span>
+          <button type="button" class="button is-small is-rounded is-link" aria-pressed="true"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_mlp_tfmed.gif">TF-med wide (no phase)</button>
+          <button type="button" class="button is-small is-rounded" aria-pressed="false"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_mlp_score_w2.5_const_tfmed.gif">TF-med wide+score</button>
+          <button type="button" class="button is-small is-rounded" aria-pressed="false"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_mlp_mlpmed.gif">MLP-med wide</button>
+          <button type="button" class="button is-small is-rounded" aria-pressed="false"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_mlp_score_w2.5_const_mlpmed.gif">MLP-med wide+score</button>
+        </div>
+        <div class="method-group">
+          <span class="group-label">Baselines</span>
+          <button type="button" class="button is-small is-rounded" aria-pressed="false"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_dp.gif">Diffusion Policy (open loop)</button>
+          <button type="button" class="button is-small is-rounded" aria-pressed="false"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_mip.gif">MIP (open loop)</button>
+          <button type="button" class="button is-small is-rounded" aria-pressed="false"
+                  data-gif="./static/videos/fig_pusht_rollout_ranked_act_te.gif">ACT (closed loop)</button>
+        </div>
+      </div>
+      <div class="gif-frame">
+        <img id="compare-gif" src="./static/videos/fig_pusht_rollout_ranked_mlp_tfmed.gif" class="figure-img"
+             loading="lazy"
+             alt="Push-T rollouts of TF-med wide (no phase): best, median and worst episode for each of 10 policy seeds.">
+        <span id="compare-loading" class="loading-badge" hidden>loading…</span>
+      </div>
+    </div>
+    <p class="caption has-text-centered">
+      Columns: 10 policy seeds. Rows: each seed's best, median and worst of its 50 test episodes. Played at
+      3× real time. Green T: goal pose; blue dot: pusher. Variants with phase: each panel freezes when the episode
+      succeeds ("done at <i>t</i>") or when the phase estimator first reads ρ&nbsp;=&nbsp;1 ("ρ&nbsp;=&nbsp;1 at
+      <i>t</i>"). Variants without phase and the baselines run the full episode (up to 300 steps).
+    </p>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">A shared start defeats every deterministic variant</h2>
+    <div class="content has-text-justified section-intro">
+      <p>
+        When the start state is shared, the MSE target at forks is the branch average regardless of phase
+        conditioning, so a deterministic policy follows one path. The score penalty vanishes where demonstrations
+        coincide and cannot change this. With a fixed start and 512 copies each of a left and a right path
+        (<b>point-to-point fixed</b>), no MLP variant reaches the goal in any seed. This holds even with waypoint
+        noise after the fork (<b>+path noise</b>). Varying the start of every demonstration (<b>+start noise</b>)
+        restores 60&ndash;97% success
+        across the four MLP variants: the score-regularized variants reach 95&ndash;97%, and MLP+score reaches 97%
+        where the MLP reaches 60% (p&nbsp;=&nbsp;0.002). Stochastic training starts render stochastic sampling at
+        inference unnecessary.
+      </p>
+    </div>
+  </div>
+  <div class="container is-max-widescreen">
+    <img src="./static/images/fig_p2p_violin.png" class="figure-img" loading="lazy"
+         alt="Point-to-point dual path: MMD and success rate per seed of MLP, MLP+score, MLP+phase and MLP+phase+score trained on the point-to-point fixed, +path noise, +start noise and full dual path datasets.">
+    <p class="caption has-text-centered">
+      Spread in the training starts, not variation along the path, is what lets a deterministic policy split
+      between the two routes. <b>Point-to-point fixed</b>: two mirror-image trajectories from one exact start pose,
+      repeated. <b>+path noise</b>: the same start with the dual path scenario's waypoint noise
+      (σ&nbsp;=&nbsp;0.3&nbsp;m). <b>+start noise</b>: start-pose noise (8&nbsp;cm, 0.05&nbsp;rad) and no waypoint
+      noise. <b>Dual path</b>: the original scenario (C), with both. Left: MMD²&nbsp;×&nbsp;10³ to each set's held-out
+      demonstrations (log scale; not comparable across sets). Right: success (within 0.6&nbsp;m of the goal with no
+      collision). Dots: 10 seeds; bar: mean; the score variants use λ&nbsp;=&nbsp;0.5 and the phase-conditioned ones
+      are in bold. †:&nbsp;p&nbsp;&lt;&nbsp;0.05 against MLP+phase+score trained on the same set (Welch's t-test over
+      seeds).
+    </p>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Pareto-optimal on CPU and GPU</h2>
+    <div class="content has-text-justified section-intro">
+      <p>
+        Score-regularized deterministic models with phase are Pareto optimal on both CPU and GPU. We time four Push-T
+        backbones, each in all four variants (phase + score, phase, score, neither): two MLPs (0.79M and 1.78M
+        parameters) and two Phaseformers (1.79M and 3.42M). On a CPU, MLP-med wide+phase+score scores 0.67 at
+        0.39&nbsp;ms per control step, within a 1&nbsp;kHz tactile control loop, and TF-large+phase+score reaches 0.72
+        at 2.1&nbsp;ms. Every Pareto-optimal policy that does not require iterative computation runs closed loop under
+        the 16.7&nbsp;ms budget for visual control on a CPU. Diffusion Policy scores highest (0.96 open loop), but needs
+        432&nbsp;ms per control step on the CPU and 17&nbsp;ms on the GPU, even with each decision spread over its
+        8-step chunk.
+      </p>
+    </div>
+  </div>
+  <div class="container is-max-widescreen">
+    <img src="./static/images/fig_pusht_pareto.png" class="figure-img teaser-img" loading="lazy"
+         alt="Push-T mean score against milliseconds per control step on CPU and on a CUDA-graphed GPU, for four backbones with and without phase and score, and Diffusion Policy, MIP and ACT.">
+    <p class="caption has-text-centered">
+      Task success versus inference latency for Push-T: mean score over 10 seeds against median latency per control
+      step at batch&nbsp;1 (log scale). A variant with phase is timed together with its phase estimator; open-loop
+      baselines spread one decision over the 8 steps it executes. Dashed: the Pareto frontier. Vertical lines:
+      1&nbsp;kHz tactile and 60&nbsp;Hz visual feedback control rates.
+    </p>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">What the comparison shows</h2>
+    <div class="content has-text-justified">
+      <p>
+        ACT, Streaming Flow Policy and MIP add stochasticity only in training, so at test time each follows the mode
+        its input selects, as Phaseformer does. On tasks built to need multimodality, neither iterative computation
+        nor sampling at inference is required, and the training stochasticity need not be synthetic, because varied
+        demonstration starts supply it. Sampling at inference, as in Diffusion Policy, remains necessary when the mode
+        depends on nothing the policy observes.
+      </p>
+      <p>
+        <b>Limitations.</b> Phaseformer+score's low success rate on Push-T, compared to ACT and Diffusion Policy,
+        stems mainly from final position error: success requires 95% goal coverage, which a correctly oriented but
+        incorrectly translated block misses. Our tasks are short-horizon and in SE(2), and our policies need varied
+        demonstration starts. Scaling to SE(3) will need longer horizons and better task-progress estimators.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<section class="section" id="BibTeX">
+  <div class="container is-max-desktop content">
+    <h2 class="title">BibTeX</h2>
+    <!-- Fill in the arXiv ID once the paper is listed. -->
+    <pre><code>@article{liechty2026phaseformer,
+  title   = {Phaseformer: Minimum Requirements for Multimodal Behavior Cloning},
+  author  = {Liechty, Joseph C. and Hermans, Tucker},
+  journal = {arXiv preprint arXiv:XXXX.XXXXX},
+  year    = {2026}
+}</code></pre>
+  </div>
+</section>
+
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <a class="icon-link" href="./static/phaseformer.pdf" aria-label="Paper PDF">
+        <i class="fas fa-file-pdf"></i>
+      </a>
+      <a class="icon-link" href="https://github.com/joeliechty/phaseformer" aria-label="Code">
+        <i class="fab fa-github"></i>
+      </a>
+    </div>
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content has-text-centered">
+          <p>
+            This website is adapted from the <a href="https://github.com/nerfies/nerfies.github.io">Nerfies</a>
+            template and is licensed under a <a rel="license"
+            href="http://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0
+            International License</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

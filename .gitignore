@@ -1,0 +1,4 @@
+output*
+
+# Source PDFs dropped in for the build; the site serves static/phaseformer.pdf and the rendered teaser.
+/*.pdf

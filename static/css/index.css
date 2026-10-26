@@ -1,0 +1,209 @@
+body {
+  font-family: 'Noto Sans', sans-serif;
+  background: #fff;
+}
+
+
+.footer .icon-link {
+    font-size: 25px;
+    color: #000;
+    margin: 0 0.4rem;
+}
+
+.link-block a {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.dnerf {
+  font-variant: small-caps;
+}
+
+
+.teaser .hero-body {
+  padding-top: 0;
+  padding-bottom: 2rem;
+}
+
+.teaser {
+  font-family: 'Google Sans', sans-serif;
+}
+
+.teaser-img {
+  max-width: 1024px;
+  margin: 0 auto;
+}
+
+.tldr {
+  margin-top: 1.5rem;
+  line-height: 1.5;
+}
+
+
+.publication-title,
+.publication-subtitle,
+.publication-authors {
+    font-family: 'Google Sans', sans-serif;
+}
+
+.publication-subtitle {
+    line-height: 1.3;
+}
+
+.title,
+.subtitle {
+    text-wrap: balance;
+}
+
+.content.section-intro {
+    margin-bottom: 1.5rem;
+}
+
+@media screen and (max-width: 768px) {
+  .has-text-justified {
+    text-align: left !important;
+  }
+}
+
+.publication-venue-line {
+    color: #555;
+    margin-top: 0.25rem;
+}
+
+
+/* Figures */
+
+.figure-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.figure-gap {
+  margin-top: 1.5rem;
+}
+
+.figure-block {
+  margin: 0;
+}
+
+.figure-block + .figure-block {
+  margin-top: 1.5rem;
+}
+
+.figure-label {
+  font-family: 'Google Sans', sans-serif;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.figure-sublabel {
+  color: #777;
+  font-weight: 400;
+  margin-left: 0.4rem;
+}
+
+.caption {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 0.75rem;
+}
+
+
+/* Method cards */
+
+.method-card {
+  height: 100%;
+}
+
+.method-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  margin-bottom: 0.6rem;
+  border-radius: 50%;
+  background: #363636;
+  color: #fff;
+  font-weight: 700;
+}
+
+.equation {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+}
+
+
+/* Push-T viewers */
+
+.viewer {
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.viewer + .viewer {
+  margin-top: 1.5rem;
+}
+
+.viewer-title {
+  font-family: 'Google Sans', sans-serif;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.method-groups {
+  margin-bottom: 0.75rem;
+}
+
+.method-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.group-label {
+  min-width: 5.5rem;
+  color: #777;
+  font-size: 0.8rem;
+}
+
+.gif-frame {
+  position: relative;
+}
+
+.loading-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.loading-badge[hidden] {
+  display: none;
+}
+
+
+/* Policy comparison table */
+
+.table-title {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem !important;
+}
+
+.policy-table {
+  font-size: 0.9rem;
+}
+
+.policy-table .ours-row {
+  background: #f5f5f5;
+}
